@@ -2,7 +2,7 @@
 
 import time
 import json
-from confluent_kafka import Producer, KafkaError
+from confluent_kafka import Producer, KafkaException
 from datetime import datetime
 
 conf = {
@@ -18,9 +18,14 @@ def wait_for_kafka(brokers, timeout=120):
             # Try to get metadata to see if Kafka is up
             producer.list_topics(timeout=5)
             return
-        except KafkaError:
-            # Wait and retry
-            time.sleep(5)
+        except KafkaException as e:
+            if "Failed to resolve" in str(e):
+                print(f"Unable to resolve {brokers}. Retrying...")
+                time.sleep(5)
+            else:
+                # Handle other Kafka errors if needed
+                print(f"Error: {e}")
+                time.sleep(5)
     raise TimeoutError(f"Unable to connect to Kafka after {timeout} seconds")
 
 
@@ -47,13 +52,23 @@ def main():
     producer = Producer(conf)
 
     while True:
-        message = {
-            'name': 'random_name',
-            'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        producer.produce(topic, value=json.dumps(message), callback=delivery_report)
-        producer.flush()
-        time.sleep(10)
+        try:
+            message = {
+                'name': 'random_name',
+                'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+            producer.produce(topic, value=json.dumps(message), callback=delivery_report)
+            producer.flush()
+            time.sleep(10)
+        except KafkaException as e:
+            if "Failed to resolve" in str(e):
+                print(f"Failed to resolve {brokers}. Waiting and then retrying...")
+                time.sleep(10)
+            else:
+                # Handle other Kafka errors if needed
+                print(f"Error while producing: {e}")
+                time.sleep(10)
+        time.sleep(10)                
 
 
 if __name__ == "__main__":

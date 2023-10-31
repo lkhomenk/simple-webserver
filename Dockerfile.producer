@@ -1,0 +1,14 @@
+FROM python:3.10
+
+# Set the working directory in the container
+WORKDIR /usr/src/app
+
+# Copy the requirements and script into the container
+COPY producer.py .
+COPY requirements.txt .
+
+# Install any dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Run the script when the container launches
+CMD ["python", "./producer.py"]

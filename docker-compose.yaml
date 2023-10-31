@@ -33,9 +33,11 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   kafka-producer:
-    image: python:3.10
+    build: 
+      context: .
+      dockerfile: Dockerfile.producer
     volumes:
-      - ./producer.py:/producer.py
-    command: sleep 3600 # && pip install confluent-kafka && python /producer.py
+      - ./producer.py:/usr/src/appproducer.py
+    # command: pip install confluent-kafka && python /producer.py
     depends_on:
       - kafka
