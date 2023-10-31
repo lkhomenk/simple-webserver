@@ -1,0 +1,41 @@
+version: '3'
+services:
+  webserver:
+    build: .
+    ports:
+      - "8080:8080"
+    depends_on:
+      - kafka  
+  
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - webserver
+
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  kafka-producer:
+    image: python:3.10
+    volumes:
+      - ./producer.py:/producer.py
+    command: sleep 3600 # && pip install confluent-kafka && python /producer.py
+    depends_on:
+      - kafka
