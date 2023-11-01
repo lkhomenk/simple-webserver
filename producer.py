@@ -47,9 +47,9 @@ def delivery_report(err, msg):
     """ Called once for each message produced to indicate delivery result.
         Triggered by poll() or flush(). """
     if err is not None:
-        print('Message delivery failed: {}'.format(err), file=sys.stderr)
+        sys.stderr.write(f"{datetime.now().strftime('%Y/%m/%d %H:%M:%S')} Message delivery failed: {err}\n")
     else:
-        print('Message delivered to {} into partition [{}]'.format(msg.topic(), msg.partition()), file=sys.stderr)
+        sys.stderr.write(f"{datetime.now().strftime('%Y/%m/%d %H:%M:%S')} Message delivered to {msg.topic()} into partition [{msg.partition()}]\n")
 
 
 def produce_messages(producer, topic=TOPIC):
@@ -63,10 +63,10 @@ def produce_messages(producer, topic=TOPIC):
             producer.flush()
         except KafkaException as e:
             if "Failed to resolve" in str(e):
-                print(f"Failed to resolve {BROKERS}. Waiting and then retrying...", file=sys.stderr)
+                sys.stderr.write(f"{datetime.now().strftime('%Y/%m/%d %H:%M:%S')} Failed to resolve {BROKERS}. Waiting and then retrying...\n")
             else:
                 # Handle other Kafka exceptions if necessary
-                print(f"Error while producing: {e}", file=sys.stderr)
+                sys.stderr.write(f"{datetime.now().strftime('%Y/%m/%d %H:%M:%S')} Error while producing: {e}\n")
             time.sleep(RETRY_INTERVAL)
 
         time.sleep(RETRY_INTERVAL)
