@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	// HTTP metrics
 	httpRequestsTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "http_requests_total",
@@ -123,12 +124,6 @@ func main() {
 }
 
 func getMessages() []string {
-	// start := time.Now()
-	// defer func() {
-	// 	duration := time.Since(start).Seconds()
-	// 	kafkaConsumeDuration.Observe(duration)
-	// }()
-
 	config := sarama.NewConfig()
 	config.Consumer.Return.Errors = true
 	broker := "kafka:9092"

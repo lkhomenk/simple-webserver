@@ -2,30 +2,38 @@
 
 import time
 import json
+import sys
 from confluent_kafka import Producer, KafkaException
 from datetime import datetime
 
-conf = {
-    'bootstrap.servers': 'kafka:9092',
+BROKERS = "kafka:9092"
+TOPIC = 'random_topic'
+CONF = {
+    'bootstrap.servers': BROKERS,
 }
+RETRY_INTERVAL = 10
+WAIT_TIMEOUT = 120
 
-def wait_for_kafka(brokers, timeout=120):
+
+def wait_for_kafka(brokers=BROKERS, timeout=WAIT_TIMEOUT):
     """Wait for Kafka to be available."""
     end_time = time.time() + timeout
+
     while time.time() < end_time:
-        producer = Producer({'bootstrap.servers': brokers})
+        temporary_producer = Producer({'bootstrap.servers': brokers})
+
         try:
-            # Try to get metadata to see if Kafka is up
-            producer.list_topics(timeout=5)
+            # Attempt to retrieve metadata to see if Kafka is available
+            temporary_producer.list_topics(timeout=5)
             return
         except KafkaException as e:
             if "Failed to resolve" in str(e):
-                print(f"Unable to resolve {brokers}. Retrying...")
-                time.sleep(5)
+                print(f"Unable to resolve {brokers}. Retrying...", file=sys.stderr)
             else:
-                # Handle other Kafka errors if needed
-                print(f"Error: {e}")
-                time.sleep(5)
+                # Handle other Kafka exceptions if needed
+                print(f"Error: {e}", file=sys.stderr)
+            time.sleep(RETRY_INTERVAL)
+
     raise TimeoutError(f"Unable to connect to Kafka after {timeout} seconds")
 
 
@@ -35,22 +43,10 @@ def delivery_report(err, msg):
     if err is not None:
         print('Message delivery failed: {}'.format(err), file=sys.stderr)
     else:
-        print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
+        print('Message delivered to {} into partition [{}]'.format(msg.topic(), msg.partition()), file=sys.stderr)
 
 
-def main():
-    # Wait for Kafka
-    brokers = "kafka:9092"
-    try:
-        wait_for_kafka(brokers)
-    except TimeoutError as e:
-        print(e)
-        return
-
-    topic = 'random_topic'
-
-    producer = Producer(conf)
-
+def produce_messages(producer, topic=TOPIC):
     while True:
         try:
             message = {
@@ -59,16 +55,27 @@ def main():
             }
             producer.produce(topic, value=json.dumps(message), callback=delivery_report)
             producer.flush()
-            time.sleep(10)
         except KafkaException as e:
             if "Failed to resolve" in str(e):
-                print(f"Failed to resolve {brokers}. Waiting and then retrying...")
-                time.sleep(10)
+                print(f"Failed to resolve {BROKERS}. Waiting and then retrying...", file=sys.stderr)
             else:
-                # Handle other Kafka errors if needed
-                print(f"Error while producing: {e}")
-                time.sleep(10)
-        time.sleep(10)                
+                # Handle other Kafka exceptions if necessary
+                print(f"Error while producing: {e}", file=sys.stderr)
+            time.sleep(RETRY_INTERVAL)
+
+        time.sleep(RETRY_INTERVAL)
+
+
+def main():
+    # Wait for Kafka
+    try:
+        wait_for_kafka()
+    except TimeoutError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
+
+    producer = Producer(CONF)
+    produce_messages(producer)
 
 
 if __name__ == "__main__":
