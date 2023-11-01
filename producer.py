@@ -4,12 +4,18 @@ import time
 import json
 import sys
 from confluent_kafka import Producer, KafkaException
+from prometheus_kafka_producer.metrics_manager import ProducerMetricsManager
+from prometheus_client import start_http_server
 from datetime import datetime
+
+metric_manager = ProducerMetricsManager()
 
 BROKERS = "kafka:9092"
 TOPIC = 'random_topic'
 CONF = {
     'bootstrap.servers': BROKERS,
+    'stats_cb': metric_manager.send,
+    'statistics.interval.ms': 1000
 }
 RETRY_INTERVAL = 10
 WAIT_TIMEOUT = 120
@@ -73,10 +79,10 @@ def main():
     except TimeoutError as e:
         print(e, file=sys.stderr)
         sys.exit(1)
-
     producer = Producer(CONF)
     produce_messages(producer)
 
 
 if __name__ == "__main__":
+    start_http_server(8090)
     main()

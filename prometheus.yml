@@ -5,3 +5,8 @@ scrape_configs:
   - job_name: 'webserver'
     static_configs:
       - targets: ['webserver:8080']
+  - job_name: 'producer'
+    metrics_path: /
+    static_configs:
+      - targets: ['kafka-producer:8090']
+             

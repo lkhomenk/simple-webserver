@@ -36,6 +36,8 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile.producer
+    ports:
+      - "8090:8090"      
     volumes:
       - ./producer.py:/usr/src/appproducer.py
     # command: pip install confluent-kafka && python /producer.py
