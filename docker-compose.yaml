@@ -1,11 +1,12 @@
 version: '3'
 services:
-  webserver:
-    build: .
-    ports:
-      - "8080:8080"
-    depends_on:
-      - kafka  
+  # TODO: add when it's needed
+  # webserver:
+  #   build: .
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     - kafka  
   
   prometheus:
     image: prom/prometheus:latest
@@ -14,7 +15,7 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     depends_on:
-      - webserver
+      - kafka-producer
 
 
   zookeeper:
@@ -37,7 +38,8 @@ services:
       context: .
       dockerfile: Dockerfile.producer
     ports:
-      - "8090:8090"      
+      - "8090:8090"
+      - "5001:5001"      
     volumes:
       - ./producer.py:/usr/src/appproducer.py
     # command: pip install confluent-kafka && python /producer.py

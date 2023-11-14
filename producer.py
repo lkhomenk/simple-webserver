@@ -1,15 +1,25 @@
-# producer.py
-
+from flask import Flask, jsonify
+from threading import Thread
+from confluent_kafka import Producer, KafkaException
+from prometheus_client import start_http_server, Counter
+from prometheus_kafka_producer.metrics_manager import ProducerMetricsManager
+from datetime import datetime
+import sys
 import time
 import json
-import sys
-from confluent_kafka import Producer, KafkaException
-from prometheus_kafka_producer.metrics_manager import ProducerMetricsManager
-from prometheus_client import start_http_server
-from datetime import datetime
+import string
+import random
 
+# Metrics collector
 metric_manager = ProducerMetricsManager()
 
+# Flask app
+app = Flask(__name__)
+
+# Counter for produced messages
+produced_messages_counter = Counter('produced_messages', 'Total produced messages')
+
+# Producer configuration
 BROKERS = "kafka:9092"
 TOPIC = 'random_topic'
 CONF = {
@@ -17,72 +27,71 @@ CONF = {
     'stats_cb': metric_manager.send,
     'statistics.interval.ms': 1000
 }
-RETRY_INTERVAL = 10
-WAIT_TIMEOUT = 120
 
-
-def wait_for_kafka(brokers=BROKERS, timeout=WAIT_TIMEOUT):
-    """Wait for Kafka to be available."""
-    end_time = time.time() + timeout
-
-    while time.time() < end_time:
-        temporary_producer = Producer({'bootstrap.servers': brokers})
-
-        try:
-            # Attempt to retrieve metadata to see if Kafka is available
-            temporary_producer.list_topics(timeout=5)
-            return
-        except KafkaException as e:
-            if "Failed to resolve" in str(e):
-                print(f"Unable to resolve {brokers}. Retrying...", file=sys.stderr)
-            else:
-                # Handle other Kafka exceptions if needed
-                print(f"Error: {e}", file=sys.stderr)
-            time.sleep(RETRY_INTERVAL)
-
-    raise TimeoutError(f"Unable to connect to Kafka after {timeout} seconds")
-
+# Kafka producer
+producer = Producer(**CONF)
 
 def delivery_report(err, msg):
-    """ Called once for each message produced to indicate delivery result.
-        Triggered by poll() or flush(). """
+    """ Called once for each message produced to indicate delivery result. """
     if err is not None:
         sys.stderr.write(f"{datetime.now().strftime('%Y/%m/%d %H:%M:%S')} Message delivery failed: {err}\n")
     else:
         sys.stderr.write(f"{datetime.now().strftime('%Y/%m/%d %H:%M:%S')} Message delivered to {msg.topic()} into partition [{msg.partition()}]\n")
 
-
-def produce_messages(producer, topic=TOPIC):
+def wait_for_kafka():
+    """ Wait for Kafka to become available. """
     while True:
         try:
-            message = {
-                'name': 'random_name',
-                'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
-            producer.produce(topic, value=json.dumps(message), callback=delivery_report)
-            producer.flush()
+            # Try to get metadata to see if Kafka is up
+            producer.list_topics(timeout=5)
+            break
         except KafkaException as e:
             if "Failed to resolve" in str(e):
-                sys.stderr.write(f"{datetime.now().strftime('%Y/%m/%d %H:%M:%S')} Failed to resolve {BROKERS}. Waiting and then retrying...\n")
+                sys.stderr.write(f"Unable to resolve {BROKERS}. Retrying...\n")
             else:
-                # Handle other Kafka exceptions if necessary
-                sys.stderr.write(f"{datetime.now().strftime('%Y/%m/%d %H:%M:%S')} Error while producing: {e}\n")
-            time.sleep(RETRY_INTERVAL)
+                sys.stderr.write(f"Error: {e}\n")
+            time.sleep(10)
 
-        time.sleep(RETRY_INTERVAL)
+# Produce a message and update the counter
+def produce_message():
+    wait_for_kafka()  # Ensure Kafka is up before starting message production
+    while True:
+        message = {
+                'name': ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(10)),
+                'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+        producer.produce(TOPIC, key='key', value=json.dumps(message), callback=delivery_report)
+        producer.flush()
+        produced_messages_counter.inc()  # Increment Prometheus counter
+        time.sleep(10)  # Produce a message every 10 seconds
 
+# Endpoint to get the message count
+@app.route('/')
+def get_message_count():
+    return jsonify(message_counter=produced_messages_counter._value.get())
 
-def main():
-    # Wait for Kafka
-    try:
-        wait_for_kafka()
-    except TimeoutError as e:
-        print(e, file=sys.stderr)
-        sys.exit(1)
-    producer = Producer(CONF)
-    produce_messages(producer)
+# Function to run the Flask server on a different port
+def run_flask():
+    app.run(host='0.0.0.0', port=5001, debug=False)
 
+# Function to start the metrics server
+def run_metrics_server():
+    start_http_server(8090)
 
 if __name__ == "__main__":
-    start_http_server(8090)
-    main()
+    # Start the Flask server in a separate thread
+    flask_thread = Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+
+    # Start the Prometheus metrics server
+    metrics_thread = Thread(target=run_metrics_server, daemon=True)
+    metrics_thread.start()
+
+    # Start producing messages
+    produce_message_thread = Thread(target=produce_message, daemon=True)
+    produce_message_thread.start()
+
+    # Keep the main thread alive
+    flask_thread.join()
+    metrics_thread.join()
+    produce_message_thread.join()
