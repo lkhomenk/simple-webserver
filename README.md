@@ -5,7 +5,6 @@ Simple webserver with few metrics for Devs
 docker-compose up --build
 ```
 
-1) Access localhost:8080/messages to check incoming kafka messages produced by python producer
-2) Access localhost:8080/wtf and reload it multiple time to generate failures(50% chance to fail)
-3) Access localhost:8080/metrics to check metrics
-4) Access localhost:9090 - prometheus server UI
+1) Access localhost:5001/ to check counter updates
+2) Access localhost:8090/metrics to check metrics of kafka producer
+3) Access localhost:9090 - prometheus server UI

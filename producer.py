@@ -1,14 +1,16 @@
-from flask import Flask, jsonify
-from threading import Thread
-from confluent_kafka import Producer, KafkaException
-from prometheus_client import start_http_server, Counter
-from prometheus_kafka_producer.metrics_manager import ProducerMetricsManager
-from datetime import datetime
+import json
+import random
+import string
 import sys
 import time
-import json
-import string
-import random
+from datetime import datetime
+from threading import Thread
+
+from flask import Flask, jsonify, render_template
+from confluent_kafka import Producer, KafkaException
+from prometheus_client import start_http_server, Counter
+
+from prometheus_kafka_producer.metrics_manager import ProducerMetricsManager
 
 # Metrics collector
 metric_manager = ProducerMetricsManager()
@@ -63,12 +65,16 @@ def produce_message():
         producer.produce(TOPIC, key='key', value=json.dumps(message), callback=delivery_report)
         producer.flush()
         produced_messages_counter.inc()  # Increment Prometheus counter
-        time.sleep(10)  # Produce a message every 10 seconds
+        time.sleep(1)  # Produce a message every 1 seconds
 
 # Endpoint to get the message count
-@app.route('/')
+@app.route('/count')
 def get_message_count():
-    return jsonify(message_counter=produced_messages_counter._value.get())
+    return jsonify(count=produced_messages_counter._value.get())
+
+@app.route('/')
+def index():
+    return render_template('index.html')
 
 # Function to run the Flask server on a different port
 def run_flask():

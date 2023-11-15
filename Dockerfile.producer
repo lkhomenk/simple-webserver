@@ -9,6 +9,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code
 COPY producer.py .
+COPY templates/ templates/
 
 # Expose ports for the Flask app and Prometheus metrics
 EXPOSE 5001
